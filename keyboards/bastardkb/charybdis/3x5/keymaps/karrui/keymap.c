@@ -276,15 +276,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         */
         if (record->event.pressed && record->tap.count > 0) {
             // Detect right Shift
-            if (get_mods() & MOD_BIT(KC_RSHIFT)) {
+            if (get_mods() & MOD_BIT(KC_RSFT)) {
                 // temporarily disable right Shift
                 // so that we can send KC_E and KC_N
                 // without Shift on.
-                unregister_mods(MOD_BIT(KC_RSHIFT));
+                unregister_mods(MOD_BIT(KC_RSFT));
                 tap_code(KC_E);
                 tap_code(KC_N);
                 // restore the mod state
-                add_mods(MOD_BIT(KC_RSHIFT));
+                add_mods(MOD_BIT(KC_RSFT));
                 // to prevent QMK from processing RCTL_T(KC_N) as usual in our special case
                 return false;
             }
@@ -303,11 +303,11 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         */
 
         if (record->event.pressed && record->tap.count > 0) {
-            if (get_mods() & MOD_BIT(KC_LSHIFT)) {
-                unregister_mods(MOD_BIT(KC_LSHIFT));
+            if (get_mods() & MOD_BIT(KC_LSFT)) {
+                unregister_mods(MOD_BIT(KC_LSFT));
                 tap_code(KC_S);
                 tap_code(KC_T);
-                add_mods(MOD_BIT(KC_LSHIFT));
+                add_mods(MOD_BIT(KC_LSFT));
                 return false;
             }
         }
