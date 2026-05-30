@@ -286,10 +286,11 @@ layer_state_t layer_state_set_user(layer_state_t state) {
     const bool pointer_on = layer_state_cmp(state, CHARYBDIS_AUTO_SNIPING_ON_LAYER);
     bool       sniping    = pointer_on;
 #        ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
-    // Only enable sniping DPI when the pointer layer was entered deliberately
-    // (manual hold).  When it was auto-triggered by trackball movement
-    // (`auto_pointer_layer_timer != 0`), keep the normal DPI.
-    sniping = sniping && auto_pointer_layer_timer == 0;
+    // Only enable sniping DPI when the pointer layer is entered deliberately:
+    // either a pure manual hold (`auto_pointer_layer_timer == 0`) or a manual
+    // hold layered on top of an auto-trigger (`pointer_layer_manual_hold`).  A
+    // bare auto-trigger keeps the normal DPI.
+    sniping = sniping && (auto_pointer_layer_timer == 0 || pointer_layer_manual_hold);
 #            ifdef RGB_MATRIX_ENABLE
     // Restore the default RGB effect once the pointer layer turns off, however
     // it was raised (auto timeout or manual release).  Guarded by
@@ -319,8 +320,13 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     case _L_PTR(KC_Z):
     case _L_PTR(KC_SLSH):
         // Track manual pointer-layer holds so the auto turn-off can defer to
-        // them.  Returning true lets QMK process the layer-tap as usual.
+        // them.  Also drive sniping DPI directly off the hold: when the pointer
+        // layer was already raised by the auto-trigger, grabbing it manually
+        // doesn't change layer state, so `layer_state_set_user` won't re-fire --
+        // we must toggle sniping here.  Returning true lets QMK process the
+        // layer-tap as usual.
         pointer_layer_manual_hold = record->event.pressed;
+        charybdis_set_pointer_sniping_enabled(record->event.pressed);
         return true;
 #endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 
