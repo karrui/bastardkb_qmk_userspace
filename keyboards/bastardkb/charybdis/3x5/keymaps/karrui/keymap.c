@@ -53,7 +53,7 @@ static bool auto_pointer_rgb_on = false;
 #    endif // RGB_MATRIX_ENABLE
 
 #    ifndef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS
-#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS 1000
+#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS 700
 #    endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS
 
 // Accumulated movement (sum of |x| + |y| over cycles) required to trigger.
@@ -327,6 +327,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         // layer-tap as usual.
         pointer_layer_manual_hold = record->event.pressed;
         charybdis_set_pointer_sniping_enabled(record->event.pressed);
+        // Releasing a manual *hold* (tap.count == 0) drops the pointer layer via
+        // the LT.  Clear the stale auto-trigger state so the next trackball
+        // movement re-raises the layer immediately instead of waiting out the
+        // old auto timeout.  A tap (tap.count > 0) doesn't touch the layer, so
+        // leave the auto state alone to avoid stranding the layer on.
+        if (!record->event.pressed && record->tap.count == 0) {
+            auto_pointer_layer_timer = 0;
+            auto_pointer_layer_cum   = 0;
+        }
         return true;
 #endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 
