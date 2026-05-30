@@ -142,7 +142,7 @@ static bool auto_pointer_rgb_on = false;
 #define LAYOUT_LAYER_POINTER                                                                  \
     DT_PRNT,  DT_UP,  DT_DOWN, DPI_MOD, S_D_MOD, S_D_MOD, DPI_MOD, XXXXXXX, XXXXXXX, XXXXXXX, \
     ______________HOME_ROW_GACS_L______________, ______________HOME_ROW_GACS_R______________, \
-    _______, DRGSCRL, C(KC_C), C(KC_V), C(KC_A), XXXXXXX, XXXXXXX, SNIPING, DRGSCRL, _______, \
+    _______, DRGSCRL, C(KC_C), C(KC_V), C(KC_A), XXXXXXX, XXXXXXX, SNIPING, AML_TOG, _______, \
                       KC_BTN2, KC_BTN1, KC_BTN3, KC_BTN3, KC_BTN1
 
 /**
