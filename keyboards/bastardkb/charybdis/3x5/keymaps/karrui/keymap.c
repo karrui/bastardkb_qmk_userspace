@@ -33,6 +33,15 @@ enum charybdis_keymap_layers {
 // Automatically enable sniping-mode on the pointer layer.
 #define CHARYBDIS_AUTO_SNIPING_ON_LAYER LAYER_POINTER
 
+// Custom keymap keycodes.  Placed in the `QK_USER` range so they don't collide
+// with the keyboard's own custom keycodes (DRGSCRL, DPI_MOD, ...) and can be
+// bound from VIA via the "Any" key (QK_USER_0 == 0x7E40).
+enum keymap_keycodes {
+    // Toggle the auto pointer-layer trigger on/off at runtime.
+    AUTO_POINTER_LAYER_TOGGLE = QK_USER_0,
+};
+#define AML_TOG AUTO_POINTER_LAYER_TOGGLE
+
 #ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 static uint16_t auto_pointer_layer_timer = 0;
 // Running sum of pointer movement since the last trigger.  Accumulating across
@@ -45,6 +54,9 @@ static uint16_t auto_pointer_layer_cum = 0;
 // auto turn-off defers to this so it never pulls the layer out from under a
 // manual hold.
 static bool pointer_layer_manual_hold = false;
+// Runtime on/off switch for the whole auto-trigger feature, toggled from VIA
+// via AUTO_POINTER_LAYER_TOGGLE.  Defaults on.
+static bool auto_pointer_layer_enabled = true;
 #    ifdef RGB_MATRIX_ENABLE
 // Whether the auto-trigger currently owns the RGB feedback (green).  Lets the
 // layer-off handler restore the default effect without clobbering RGB set by
@@ -236,6 +248,11 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 #ifdef POINTING_DEVICE_ENABLE
 #    ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
+    // Feature switched off from VIA: don't run any auto-trigger logic.  Manual
+    // `_L_PTR` holds are unaffected -- they're driven by the layer-tap, not here.
+    if (!auto_pointer_layer_enabled) {
+        return mouse_report;
+    }
     // If the pointer layer is already active from a manual hold (the `_L_PTR`
     // key), don't run the auto-trigger -- otherwise it would steal ownership of
     // the layer and clobber the manual sniping DPI.  `auto_pointer_layer_timer`
@@ -317,6 +334,20 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
 
 #ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
+    case AUTO_POINTER_LAYER_TOGGLE:
+        if (record->event.pressed) {
+            auto_pointer_layer_enabled = !auto_pointer_layer_enabled;
+            // If turning the feature off while it currently owns the layer (and
+            // no manual hold is keeping it up), drop the layer now instead of
+            // waiting out the timeout.
+            if (!auto_pointer_layer_enabled && auto_pointer_layer_timer != 0 && !pointer_layer_manual_hold) {
+                auto_pointer_layer_timer = 0;
+                auto_pointer_layer_cum   = 0;
+                layer_off(LAYER_POINTER); // RGB reset handled by layer_state_set_user
+            }
+        }
+        return false;
+
     case _L_PTR(KC_Z):
     case _L_PTR(KC_SLSH):
         // Track manual pointer-layer holds so the auto turn-off can defer to
