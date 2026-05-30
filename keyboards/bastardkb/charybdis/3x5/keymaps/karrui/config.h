@@ -27,7 +27,6 @@
 #endif // __arm__
 
 /* Charybdis-specific features. */
-
 #ifdef POINTING_DEVICE_ENABLE
 // Automatically enable the pointer layer when moving the trackball.  See also:
 // - `CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS`
