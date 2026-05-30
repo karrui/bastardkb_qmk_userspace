@@ -35,13 +35,21 @@ enum charybdis_keymap_layers {
 
 #ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 static uint16_t auto_pointer_layer_timer = 0;
+// Running sum of pointer movement since the last trigger.  Accumulating across
+// polling cycles (instead of testing a single report) keeps the trigger
+// consistent whether a half is used alone or paired -- when paired, the split
+// transport slices the same swipe into a different number of cycles, so a
+// per-report threshold mistunes between the two configurations.
+static uint16_t auto_pointer_layer_cum = 0;
 
 #    ifndef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS
 #        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS 1000
 #    endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS
 
+// Accumulated movement (sum of |x| + |y| over cycles) required to trigger.
+// Higher = more deliberate movement needed.  Lower = more sensitive.
 #    ifndef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD
-#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD 8
+#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD 60
 #    endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD
 #endif     // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 
@@ -218,15 +226,20 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 #ifdef POINTING_DEVICE_ENABLE
 #    ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
-    if (abs(mouse_report.x) > CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD || abs(mouse_report.y) > CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD) {
-        if (auto_pointer_layer_timer == 0) {
+    auto_pointer_layer_cum += abs(mouse_report.x) + abs(mouse_report.y);
+    if (auto_pointer_layer_cum > CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD) {
+        auto_pointer_layer_cum = 0;
+        const bool was_off = auto_pointer_layer_timer == 0;
+        // Set the timer *before* enabling the layer so `layer_state_set_user`
+        // can tell this activation was automatic (timer != 0) and skip sniping.
+        auto_pointer_layer_timer = timer_read();
+        if (was_off) {
             layer_on(LAYER_POINTER);
 #        ifdef RGB_MATRIX_ENABLE
             rgb_matrix_mode_noeeprom(RGB_MATRIX_NONE);
             rgb_matrix_sethsv_noeeprom(HSV_GREEN);
 #        endif // RGB_MATRIX_ENABLE
         }
-        auto_pointer_layer_timer = timer_read();
     }
     return mouse_report;
 }
@@ -234,6 +247,7 @@ report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
 void matrix_scan_user(void) {
     if (auto_pointer_layer_timer != 0 && TIMER_DIFF_16(timer_read(), auto_pointer_layer_timer) >= CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS) {
         auto_pointer_layer_timer = 0;
+        auto_pointer_layer_cum   = 0;
         layer_off(LAYER_POINTER);
 #        ifdef RGB_MATRIX_ENABLE
         rgb_matrix_mode_noeeprom(RGB_MATRIX_DEFAULT_MODE);
@@ -244,7 +258,14 @@ void matrix_scan_user(void) {
 
 #    ifdef CHARYBDIS_AUTO_SNIPING_ON_LAYER
 layer_state_t layer_state_set_user(layer_state_t state) {
-    charybdis_set_pointer_sniping_enabled(layer_state_cmp(state, CHARYBDIS_AUTO_SNIPING_ON_LAYER));
+    bool sniping = layer_state_cmp(state, CHARYBDIS_AUTO_SNIPING_ON_LAYER);
+#        ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
+    // Only enable sniping DPI when the pointer layer was entered deliberately
+    // (manual hold).  When it was auto-triggered by trackball movement
+    // (`auto_pointer_layer_timer != 0`), keep the normal DPI.
+    sniping = sniping && auto_pointer_layer_timer == 0;
+#        endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
+    charybdis_set_pointer_sniping_enabled(sniping);
     return state;
 }
 #    endif // CHARYBDIS_AUTO_SNIPING_ON_LAYER
