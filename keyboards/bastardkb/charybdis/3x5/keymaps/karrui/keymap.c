@@ -273,7 +273,10 @@ report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
             layer_on(LAYER_POINTER);
 #        ifdef RGB_MATRIX_ENABLE
             rgb_matrix_mode_noeeprom(RGB_MATRIX_NONE);
-            rgb_matrix_sethsv_noeeprom(HSV_GREEN);
+            // Green (HSV_GREEN is hue 85, sat 255) but at the user's current
+            // brightness -- HSV_GREEN's value of 255 would force full brightness
+            // and ignore the configured level.
+            rgb_matrix_sethsv_noeeprom(85, 255, rgb_matrix_get_val());
             auto_pointer_rgb_on = true;
 #        endif // RGB_MATRIX_ENABLE
         }
