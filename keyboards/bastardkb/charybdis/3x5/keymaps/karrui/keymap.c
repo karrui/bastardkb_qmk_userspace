@@ -53,7 +53,7 @@ static bool auto_pointer_rgb_on = false;
 #    endif // RGB_MATRIX_ENABLE
 
 #    ifndef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS
-#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS 700
+#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS 1000
 #    endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS
 
 // Accumulated movement (sum of |x| + |y| over cycles) required to trigger.
