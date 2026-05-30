@@ -327,6 +327,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         // layer-tap as usual.
         pointer_layer_manual_hold = record->event.pressed;
         charybdis_set_pointer_sniping_enabled(record->event.pressed);
+#    ifdef RGB_MATRIX_ENABLE
+        // Taking manual control hands the RGB back to normal: drop the
+        // auto-trigger's green so the layer's own colors are the source of
+        // truth.  Gated on `auto_pointer_rgb_on` so we only undo our own green.
+        if (record->event.pressed && auto_pointer_rgb_on) {
+            rgb_matrix_mode_noeeprom(RGB_MATRIX_DEFAULT_MODE);
+            auto_pointer_rgb_on = false;
+        }
+#    endif // RGB_MATRIX_ENABLE
         // Releasing a manual *hold* (tap.count == 0) drops the pointer layer via
         // the LT.  Clear the stale auto-trigger state so the next trackball
         // movement re-raises the layer immediately instead of waiting out the
