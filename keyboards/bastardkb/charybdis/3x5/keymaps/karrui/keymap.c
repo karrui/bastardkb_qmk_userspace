@@ -49,7 +49,7 @@ static uint16_t auto_pointer_layer_cum = 0;
 // Accumulated movement (sum of |x| + |y| over cycles) required to trigger.
 // Higher = more deliberate movement needed.  Lower = more sensitive.
 #    ifndef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD
-#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD 60
+#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD 200
 #    endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD
 #endif     // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 
@@ -226,6 +226,15 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 #ifdef POINTING_DEVICE_ENABLE
 #    ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
+    // If the pointer layer is already active from a manual hold (the `_L_PTR`
+    // key), don't run the auto-trigger -- otherwise it would steal ownership of
+    // the layer and clobber the manual sniping DPI.  `auto_pointer_layer_timer`
+    // is only non-zero when *we* raised the layer, so layer-on + timer == 0
+    // means a manual hold.
+    if (auto_pointer_layer_timer == 0 && layer_state_is(LAYER_POINTER)) {
+        auto_pointer_layer_cum = 0;
+        return mouse_report;
+    }
     auto_pointer_layer_cum += abs(mouse_report.x) + abs(mouse_report.y);
     if (auto_pointer_layer_cum > CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD) {
         auto_pointer_layer_cum = 0;
