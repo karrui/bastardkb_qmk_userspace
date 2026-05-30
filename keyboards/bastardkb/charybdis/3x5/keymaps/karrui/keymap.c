@@ -59,7 +59,7 @@ static bool auto_pointer_rgb_on = false;
 // Accumulated movement (sum of |x| + |y| over cycles) required to trigger.
 // Higher = more deliberate movement needed.  Lower = more sensitive.
 #    ifndef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD
-#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD 200
+#        define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD 280
 #    endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD
 #endif     // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 
