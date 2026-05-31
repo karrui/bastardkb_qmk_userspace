@@ -275,6 +275,17 @@ const char chordal_hold_layout[MATRIX_ROWS][MATRIX_COLS] PROGMEM = LAYOUT_wrappe
 #endif // CHORDAL_HOLD
 // clang-format on
 
+#ifdef COMBO_ENABLE
+// Z + X together -> drag-scroll, instantly.  Independent of Z's tap-hold timing,
+// so it gives snappy drag-scroll entry without affecting how Z types or enters
+// the pointer layer.  "zx" isn't a real letter sequence, so it won't misfire
+// while typing; a deliberate "hold Z, then press X later" still uses the layer.
+const uint16_t PROGMEM combo_zx_dragscroll[] = {_L_PTR(KC_Z), KC_X, COMBO_END};
+combo_t key_combos[] = {
+    COMBO(combo_zx_dragscroll, DRGSCRL),
+};
+#endif // COMBO_ENABLE
+
 #ifdef POINTING_DEVICE_ENABLE
 #    ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 // Keys that should NOT drop the auto mouse layer: mouse buttons, drag-scroll,
@@ -358,16 +369,14 @@ layer_state_t layer_state_set_user(layer_state_t state) {
 void rgb_matrix_update_pwm_buffers(void);
 #endif
 
-// Shorter tapping term for the pointer-layer keys.  The pointer layer is used
-// with the trackball, so there's no other key press to settle the hold early --
-// a quick hold has to out-wait the tapping term or it just taps the letter.  Z
-// gets a snappy 120ms (rare letter); / keeps the old 175ms since it's a common
-// character and an over-eager hold would misfire on slashes.  Everything else
-// falls through to g_tapping_term so DYNAMIC_TAPPING_TERM (DT_ keys) keeps working.
+// Tapping term for the pointer-layer keys, shorter than the global 250 so the
+// layer is reachable with a comfortable hold, but not so short that a normally-
+// typed 'z' or '/' times out into a hold mid-word.  175ms matches the feel you're
+// used to.  Everything else falls through to g_tapping_term so DYNAMIC_TAPPING_TERM
+// (DT_ keys) keeps working.
 uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
         case _L_PTR(KC_Z):
-            return 120;
         case _L_PTR(KC_SLSH):
             return 175;
     }
@@ -376,20 +385,6 @@ uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) {
 #else
     return TAPPING_TERM;
 #endif
-}
-
-// Make the pointer-layer key Z an "obvious" hold modifier: any other key pressed
-// while it's held settles it as a hold immediately, so Z->X drops straight into
-// drag-scroll with no wait.  `/` is left off this (it's a common character, so
-// aggressive holds would misfire on slashes in URLs/paths) -- it still enters the
-// layer via its short tapping term + '*' chordal exemption, just not instantly.
-// Everything else returns false and keeps the global Permissive Hold behavior.
-bool get_hold_on_other_key_press(uint16_t keycode, keyrecord_t *record) {
-    switch (keycode) {
-        case _L_PTR(KC_Z):
-            return true;
-    }
-    return false;
 }
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {

@@ -54,8 +54,3 @@
 // returns g_tapping_term in the default case to keep the DT_ keys working.  Used
 // to give the pointer-layer key (Z) a much shorter hold -- see get_tapping_term().
 #define TAPPING_TERM_PER_KEY
-
-// Per-key Hold-On-Other-Key-Press: the pointer-layer keys (Z, /) settle as a hold
-// the instant another key is pressed, so chords like Z->X drop into the pointer
-// layer immediately.  Home-row mods are unaffected -- they keep Permissive Hold.
-#define HOLD_ON_OTHER_KEY_PRESS_PER_KEY
