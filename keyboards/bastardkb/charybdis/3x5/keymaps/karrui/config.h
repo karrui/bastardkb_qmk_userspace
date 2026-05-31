@@ -36,18 +36,15 @@
 #    define CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 #endif // POINTING_DEVICE_ENABLE
 
-#define TAPPING_TERM 175
+#define TAPPING_TERM 250
 
 // Home row mod tuning.  Chordal Hold settles same-hand chords as taps (so
-// same-hand rolls like "as"/"en" don't fire mods), while HOLD_ON_OTHER_KEY_PRESS
-// settles opposite-hand chords as holds immediately (so cross-hand mods like
-// Shift+letter engage even on fast rolls, instead of dropping the mod and
-// emitting the tap -- the "The -> nthe" bug).
+// same-hand rolls like "as"/"en" don't fire mods).  Permissive Hold settles an
+// opposite-hand chord as a hold only when the other key is pressed *and released*
+// while the mod-tap is still down (a nested press) -- so cross-hand rolls, where
+// you release the first key first ("er", "to"), stay taps, while holding Shift
+// through a letter (nested press) still capitalizes.  Resolving holds vs. rolls
+// by press/release ordering avoids the Flow-Tap-after-space problem that was
+// eating capitals (the "The -> nthe" symptom).
 #define CHORDAL_HOLD
-#define HOLD_ON_OTHER_KEY_PRESS
-// Flow Tap: during fast typing (a tap-hold key pressed within this many ms of
-// the previous typing key), force the tap.  Catches fast cross-hand rolls of
-// home-row pairs (to/is/it/an/or) that HOLD_ON_OTHER_KEY_PRESS would otherwise
-// misfire as mods.  Default key set includes Space; see is_flow_tap_key() to
-// customize (e.g. drop KC_SPC if capitals after a space get eaten).
-#define FLOW_TAP_TERM 150
+#define PERMISSIVE_HOLD
