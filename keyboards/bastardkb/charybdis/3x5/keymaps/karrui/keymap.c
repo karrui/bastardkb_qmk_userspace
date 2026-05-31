@@ -28,6 +28,9 @@ enum charybdis_keymap_layers {
     LAYER_POINTER,
     LAYER_NUMERAL,
     LAYER_SYMBOLS,
+    // Raised automatically by trackball movement.  Kept last so adding it
+    // doesn't shift the indices of the existing (VIA-visible) layers.
+    LAYER_AUTO_POINTER,
 };
 
 // Automatically enable sniping-mode on the pointer layer.
@@ -50,10 +53,6 @@ static uint16_t auto_pointer_layer_timer = 0;
 // transport slices the same swipe into a different number of cycles, so a
 // per-report threshold mistunes between the two configurations.
 static uint16_t auto_pointer_layer_cum = 0;
-// Whether the pointer layer is currently held via a manual `_L_PTR` key.  The
-// auto turn-off defers to this so it never pulls the layer out from under a
-// manual hold.
-static bool pointer_layer_manual_hold = false;
 // Runtime on/off switch for the whole auto-trigger feature, toggled from VIA
 // via AUTO_POINTER_LAYER_TOGGLE.  Defaults on.
 static bool auto_pointer_layer_enabled = true;
@@ -186,6 +185,21 @@ static bool auto_pointer_rgb_on = false;
                       KC_LCBR, KC_RCBR, KC_GT, _______, XXXXXXX
 
 /**
+ * \brief Auto mouse layer.
+ *
+ * Raised automatically by trackball movement (see the auto-trigger below).
+ * Transparent everywhere except mouse controls, so any other key falls through
+ * to the base layer and types immediately (which also drops this layer).  The
+ * right-hand bottom row gives one-handed clicks: H = left, "," = right,
+ * "." = drag-scroll, "/" = middle; thumbs mirror the manual pointer layer.
+ */
+#define LAYOUT_LAYER_AUTO_POINTER                                                              \
+    _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, \
+    _______, _______, _______, _______, _______, _______, _______, _______, _______, _______, \
+    _______, _______, _______, _______, _______, _______, KC_BTN1, KC_BTN2, DRGSCRL, KC_BTN3, \
+                      KC_BTN2, KC_BTN1, KC_BTN3, KC_BTN3, KC_BTN1
+
+/**
  * \brief Add Home Row mod to a layout.
  *
  * Expects a 10-key per row layout.  Adds support for GACS (Gui, Alt, Ctl, Shift)
@@ -242,23 +256,33 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   [LAYER_NUMERAL] = LAYOUT_wrapper(LAYOUT_LAYER_NUMERAL),
   [LAYER_POINTER] = LAYOUT_wrapper(LAYOUT_LAYER_POINTER),
   [LAYER_SYMBOLS] = LAYOUT_wrapper(LAYOUT_LAYER_SYMBOLS),
+  [LAYER_AUTO_POINTER] = LAYOUT_wrapper(LAYOUT_LAYER_AUTO_POINTER),
 };
 // clang-format on
 
 #ifdef POINTING_DEVICE_ENABLE
 #    ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
+// Keys that should NOT drop the auto mouse layer: mouse buttons, drag-scroll,
+// and modifiers (for click-combos).  Everything else returns to base on press.
+static bool is_auto_mouse_keep_alive(uint16_t keycode) {
+    switch (keycode) {
+        case KC_BTN1 ... KC_BTN5:
+        case DRGSCRL:
+            return true;
+        default:
+            return IS_MODIFIER_KEYCODE(keycode);
+    }
+}
+
 report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
     // Feature switched off from VIA: don't run any auto-trigger logic.  Manual
     // `_L_PTR` holds are unaffected -- they're driven by the layer-tap, not here.
     if (!auto_pointer_layer_enabled) {
         return mouse_report;
     }
-    // If the pointer layer is already active from a manual hold (the `_L_PTR`
-    // key), don't run the auto-trigger -- otherwise it would steal ownership of
-    // the layer and clobber the manual sniping DPI.  `auto_pointer_layer_timer`
-    // is only non-zero when *we* raised the layer, so layer-on + timer == 0
-    // means a manual hold.
-    if (auto_pointer_layer_timer == 0 && layer_state_is(LAYER_POINTER)) {
+    // Don't auto-trigger while the rich pointer layer is held manually (`_L_PTR`).
+    // That's a deliberate mode with its own sniping DPI and button set.
+    if (layer_state_is(LAYER_POINTER)) {
         auto_pointer_layer_cum = 0;
         return mouse_report;
     }
@@ -266,11 +290,9 @@ report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
     if (auto_pointer_layer_cum > CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_THRESHOLD) {
         auto_pointer_layer_cum = 0;
         const bool was_off = auto_pointer_layer_timer == 0;
-        // Set the timer *before* enabling the layer so `layer_state_set_user`
-        // can tell this activation was automatic (timer != 0) and skip sniping.
         auto_pointer_layer_timer = timer_read();
         if (was_off) {
-            layer_on(LAYER_POINTER);
+            layer_on(LAYER_AUTO_POINTER);
 #        ifdef RGB_MATRIX_ENABLE
             rgb_matrix_mode_noeeprom(RGB_MATRIX_NONE);
             // Green (HSV_GREEN is hue 85, sat 255) but at the user's current
@@ -286,42 +308,30 @@ report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
 
 void matrix_scan_user(void) {
     if (auto_pointer_layer_timer != 0 && TIMER_DIFF_16(timer_read(), auto_pointer_layer_timer) >= CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS) {
-        // A manual hold keeps the pointer layer alive: defer the auto turn-off
-        // (without relinquishing ownership) until the hold is released, so we
-        // never pull the layer -- and its mouse buttons -- out from under it.
-        if (pointer_layer_manual_hold) {
-            return;
-        }
         auto_pointer_layer_timer = 0;
         auto_pointer_layer_cum   = 0;
-        // The RGB reset happens in `layer_state_set_user` on the layer-off
-        // transition, so it also covers the manual-release path.
-        layer_off(LAYER_POINTER);
+        // RGB reset is handled by layer_state_set_user on the layer-off transition.
+        layer_off(LAYER_AUTO_POINTER);
     }
 }
 #    endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 
 #    ifdef CHARYBDIS_AUTO_SNIPING_ON_LAYER
 layer_state_t layer_state_set_user(layer_state_t state) {
-    const bool pointer_on = layer_state_cmp(state, CHARYBDIS_AUTO_SNIPING_ON_LAYER);
-    bool       sniping    = pointer_on;
-#        ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
-    // Only enable sniping DPI when the pointer layer is entered deliberately:
-    // either a pure manual hold (`auto_pointer_layer_timer == 0`) or a manual
-    // hold layered on top of an auto-trigger (`pointer_layer_manual_hold`).  A
-    // bare auto-trigger keeps the normal DPI.
-    sniping = sniping && (auto_pointer_layer_timer == 0 || pointer_layer_manual_hold);
-#            ifdef RGB_MATRIX_ENABLE
-    // Restore the default RGB effect once the pointer layer turns off, however
-    // it was raised (auto timeout or manual release).  Guarded by
-    // `auto_pointer_rgb_on` so we don't clobber RGB owned by other layers.
-    if (!pointer_on && auto_pointer_rgb_on) {
+    // Sniping DPI follows the manual pointer layer only; the auto mouse layer
+    // keeps the normal DPI.  Since they are now separate layers this is a simple
+    // membership test.
+    charybdis_set_pointer_sniping_enabled(layer_state_cmp(state, CHARYBDIS_AUTO_SNIPING_ON_LAYER));
+#        if defined(CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE) && defined(RGB_MATRIX_ENABLE)
+    // Restore the default RGB effect when the auto mouse layer turns off, however
+    // it was raised (auto timeout, keypress, or handoff to a manual hold).
+    // Guarded by `auto_pointer_rgb_on` so we don't clobber RGB owned by other
+    // layers.
+    if (!layer_state_cmp(state, LAYER_AUTO_POINTER) && auto_pointer_rgb_on) {
         rgb_matrix_mode_noeeprom(RGB_MATRIX_DEFAULT_MODE);
         auto_pointer_rgb_on = false;
     }
-#            endif // RGB_MATRIX_ENABLE
-#        endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
-    charybdis_set_pointer_sniping_enabled(sniping);
+#        endif
     return state;
 }
 #    endif // CHARYBDIS_AUTO_SNIPING_ON_LAYER
@@ -334,52 +344,31 @@ void rgb_matrix_update_pwm_buffers(void);
 #endif
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+#ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
+    // On the auto mouse layer, pressing any non-mouse key returns to the base
+    // layer immediately so typing doesn't wait for the timeout.  Mouse buttons,
+    // drag-scroll, and modifiers (see is_auto_mouse_keep_alive) keep it up.
+    if (record->event.pressed && layer_state_is(LAYER_AUTO_POINTER) && !is_auto_mouse_keep_alive(keycode)) {
+        auto_pointer_layer_timer = 0;
+        auto_pointer_layer_cum   = 0;
+        layer_off(LAYER_AUTO_POINTER); // RGB reset handled by layer_state_set_user
+    }
+#endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
     switch (keycode) {
 
 #ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
     case AUTO_POINTER_LAYER_TOGGLE:
         if (record->event.pressed) {
             auto_pointer_layer_enabled = !auto_pointer_layer_enabled;
-            // If turning the feature off while it currently owns the layer (and
-            // no manual hold is keeping it up), drop the layer now instead of
-            // waiting out the timeout.
-            if (!auto_pointer_layer_enabled && auto_pointer_layer_timer != 0 && !pointer_layer_manual_hold) {
+            // If turning the feature off while the auto mouse layer is up, drop
+            // it now instead of waiting out the timeout.
+            if (!auto_pointer_layer_enabled && auto_pointer_layer_timer != 0) {
                 auto_pointer_layer_timer = 0;
                 auto_pointer_layer_cum   = 0;
-                layer_off(LAYER_POINTER); // RGB reset handled by layer_state_set_user
+                layer_off(LAYER_AUTO_POINTER);
             }
         }
         return false;
-
-    case _L_PTR(KC_Z):
-    case _L_PTR(KC_SLSH):
-        // Track manual pointer-layer holds so the auto turn-off can defer to
-        // them.  Also drive sniping DPI directly off the hold: when the pointer
-        // layer was already raised by the auto-trigger, grabbing it manually
-        // doesn't change layer state, so `layer_state_set_user` won't re-fire --
-        // we must toggle sniping here.  Returning true lets QMK process the
-        // layer-tap as usual.
-        pointer_layer_manual_hold = record->event.pressed;
-        charybdis_set_pointer_sniping_enabled(record->event.pressed);
-#    ifdef RGB_MATRIX_ENABLE
-        // Taking manual control hands the RGB back to normal: drop the
-        // auto-trigger's green so the layer's own colors are the source of
-        // truth.  Gated on `auto_pointer_rgb_on` so we only undo our own green.
-        if (record->event.pressed && auto_pointer_rgb_on) {
-            rgb_matrix_mode_noeeprom(RGB_MATRIX_DEFAULT_MODE);
-            auto_pointer_rgb_on = false;
-        }
-#    endif // RGB_MATRIX_ENABLE
-        // Releasing a manual *hold* (tap.count == 0) drops the pointer layer via
-        // the LT.  Clear the stale auto-trigger state so the next trackball
-        // movement re-raises the layer immediately instead of waiting out the
-        // old auto timeout.  A tap (tap.count > 0) doesn't touch the layer, so
-        // leave the auto state alone to avoid stranding the layer on.
-        if (!record->event.pressed && record->tap.count == 0) {
-            auto_pointer_layer_timer = 0;
-            auto_pointer_layer_cum   = 0;
-        }
-        return true;
 #endif // CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
 
     case RCTL_T(KC_N):

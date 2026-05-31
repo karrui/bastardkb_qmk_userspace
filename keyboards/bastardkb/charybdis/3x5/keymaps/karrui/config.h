@@ -18,7 +18,9 @@
 
 #ifdef VIA_ENABLE
 /* VIA configuration. */
-#    define DYNAMIC_KEYMAP_LAYER_COUNT 7
+// 8 layers: the 7 base layers + the auto mouse layer (LAYER_AUTO_POINTER).  The
+// auto layer must be within this count or VIA won't initialize its keycodes.
+#    define DYNAMIC_KEYMAP_LAYER_COUNT 8
 #endif // VIA_ENABLE
 
 #ifndef __arm__
