@@ -261,12 +261,15 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 #ifdef CHORDAL_HOLD
 // Per-key handedness for Chordal Hold's opposite-hands rule.  Fingers are L/R by
-// side; thumbs are '*' (exempt) so thumb layer-taps still settle as held when
-// chorded with a same-hand key.
+// side; thumbs and the pointer-layer keys (Z, /) are '*' (exempt) so they can
+// settle as held in *same-hand* chords too -- e.g. Z->X to drop straight into
+// drag-scroll, which the same-hand rule would otherwise force to a tap.  O is
+// also '*' because it's commonly capitalized with the *right* Shift (N) -- a
+// same-hand chord that would otherwise be forced to a tap (the "nover" bug).
 const char chordal_hold_layout[MATRIX_ROWS][MATRIX_COLS] PROGMEM = LAYOUT_wrapper(
     'L', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', 'R',
-    'L', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', 'R',
-    'L', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', 'R',
+    'L', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', '*',
+    '*', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', '*',
                    '*', '*', '*',   '*', '*'
 );
 #endif // CHORDAL_HOLD
@@ -354,6 +357,40 @@ layer_state_t layer_state_set_user(layer_state_t state) {
 // rgb_matrix.c.
 void rgb_matrix_update_pwm_buffers(void);
 #endif
+
+// Shorter tapping term for the pointer-layer keys.  The pointer layer is used
+// with the trackball, so there's no other key press to settle the hold early --
+// a quick hold has to out-wait the tapping term or it just taps the letter.  Z
+// gets a snappy 120ms (rare letter); / keeps the old 175ms since it's a common
+// character and an over-eager hold would misfire on slashes.  Everything else
+// falls through to g_tapping_term so DYNAMIC_TAPPING_TERM (DT_ keys) keeps working.
+uint16_t get_tapping_term(uint16_t keycode, keyrecord_t *record) {
+    switch (keycode) {
+        case _L_PTR(KC_Z):
+            return 120;
+        case _L_PTR(KC_SLSH):
+            return 175;
+    }
+#ifdef DYNAMIC_TAPPING_TERM_ENABLE
+    return g_tapping_term;
+#else
+    return TAPPING_TERM;
+#endif
+}
+
+// Make the pointer-layer key Z an "obvious" hold modifier: any other key pressed
+// while it's held settles it as a hold immediately, so Z->X drops straight into
+// drag-scroll with no wait.  `/` is left off this (it's a common character, so
+// aggressive holds would misfire on slashes in URLs/paths) -- it still enters the
+// layer via its short tapping term + '*' chordal exemption, just not instantly.
+// Everything else returns false and keeps the global Permissive Hold behavior.
+bool get_hold_on_other_key_press(uint16_t keycode, keyrecord_t *record) {
+    switch (keycode) {
+        case _L_PTR(KC_Z):
+            return true;
+    }
+    return false;
+}
 
 bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 #ifdef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE
