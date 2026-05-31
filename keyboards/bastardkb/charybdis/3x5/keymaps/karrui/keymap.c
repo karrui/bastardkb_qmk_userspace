@@ -258,6 +258,18 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
   [LAYER_SYMBOLS] = LAYOUT_wrapper(LAYOUT_LAYER_SYMBOLS),
   [LAYER_AUTO_POINTER] = LAYOUT_wrapper(LAYOUT_LAYER_AUTO_POINTER),
 };
+
+#ifdef CHORDAL_HOLD
+// Per-key handedness for Chordal Hold's opposite-hands rule.  Fingers are L/R by
+// side; thumbs are '*' (exempt) so thumb layer-taps still settle as held when
+// chorded with a same-hand key.
+const char chordal_hold_layout[MATRIX_ROWS][MATRIX_COLS] PROGMEM = LAYOUT_wrapper(
+    'L', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', 'R',
+    'L', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', 'R',
+    'L', 'L', 'L', 'L', 'L',   'R', 'R', 'R', 'R', 'R',
+                   '*', '*', '*',   '*', '*'
+);
+#endif // CHORDAL_HOLD
 // clang-format on
 
 #ifdef POINTING_DEVICE_ENABLE

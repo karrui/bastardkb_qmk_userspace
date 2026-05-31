@@ -38,4 +38,10 @@
 
 #define TAPPING_TERM 175
 
-#define BILATERAL_COMBINATIONS
+// Home row mod tuning.  Chordal Hold settles same-hand chords as taps (so
+// same-hand rolls like "as"/"en" don't fire mods), while HOLD_ON_OTHER_KEY_PRESS
+// settles opposite-hand chords as holds immediately (so cross-hand mods like
+// Shift+letter engage even on fast rolls, instead of dropping the mod and
+// emitting the tap -- the "The -> nthe" bug).
+#define CHORDAL_HOLD
+#define HOLD_ON_OTHER_KEY_PRESS
