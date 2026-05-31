@@ -57,10 +57,10 @@ static uint16_t auto_pointer_layer_cum = 0;
 // via AUTO_POINTER_LAYER_TOGGLE.  Defaults on.
 static bool auto_pointer_layer_enabled = true;
 #    ifdef RGB_MATRIX_ENABLE
-// Whether the auto-trigger currently owns the RGB feedback (green).  Lets the
-// layer-off handler restore the default effect without clobbering RGB set by
-// other layers.
-static bool auto_pointer_rgb_on = false;
+// Whether we currently own the RGB feedback for a pointer layer (green for the
+// auto mouse layer, orange for the manual pointer layer).  Lets the layer-off
+// handler restore the default effect without clobbering RGB owned by other layers.
+static bool pointer_layer_rgb_on = false;
 #    endif // RGB_MATRIX_ENABLE
 
 #    ifndef CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_TIMEOUT_MS
@@ -318,15 +318,9 @@ report_mouse_t pointing_device_task_user(report_mouse_t mouse_report) {
         const bool was_off = auto_pointer_layer_timer == 0;
         auto_pointer_layer_timer = timer_read();
         if (was_off) {
+            // RGB feedback (green) is applied in layer_state_set_user when the
+            // auto mouse layer turns on.
             layer_on(LAYER_AUTO_POINTER);
-#        ifdef RGB_MATRIX_ENABLE
-            rgb_matrix_mode_noeeprom(RGB_MATRIX_NONE);
-            // Green (HSV_GREEN is hue 85, sat 255) but at the user's current
-            // brightness -- HSV_GREEN's value of 255 would force full brightness
-            // and ignore the configured level.
-            rgb_matrix_sethsv_noeeprom(85, 255, rgb_matrix_get_val());
-            auto_pointer_rgb_on = true;
-#        endif // RGB_MATRIX_ENABLE
         }
     }
     return mouse_report;
@@ -349,13 +343,21 @@ layer_state_t layer_state_set_user(layer_state_t state) {
     // membership test.
     charybdis_set_pointer_sniping_enabled(layer_state_cmp(state, CHARYBDIS_AUTO_SNIPING_ON_LAYER));
 #        if defined(CHARYBDIS_AUTO_POINTER_LAYER_TRIGGER_ENABLE) && defined(RGB_MATRIX_ENABLE)
-    // Restore the default RGB effect when the auto mouse layer turns off, however
-    // it was raised (auto timeout, keypress, or handoff to a manual hold).
-    // Guarded by `auto_pointer_rgb_on` so we don't clobber RGB owned by other
-    // layers.
-    if (!layer_state_cmp(state, LAYER_AUTO_POINTER) && auto_pointer_rgb_on) {
+    // Per-pointer-layer RGB feedback at the configured brightness: orange for the
+    // manual pointer layer, green for the auto mouse layer, default otherwise.
+    // `pointer_layer_rgb_on` guards the restore so we don't clobber RGB owned by
+    // other layers.
+    if (layer_state_cmp(state, LAYER_POINTER)) {
+        rgb_matrix_mode_noeeprom(RGB_MATRIX_NONE);
+        rgb_matrix_sethsv_noeeprom(28, 255, rgb_matrix_get_val()); // orange
+        pointer_layer_rgb_on = true;
+    } else if (layer_state_cmp(state, LAYER_AUTO_POINTER)) {
+        rgb_matrix_mode_noeeprom(RGB_MATRIX_NONE);
+        rgb_matrix_sethsv_noeeprom(85, 255, rgb_matrix_get_val()); // green
+        pointer_layer_rgb_on = true;
+    } else if (pointer_layer_rgb_on) {
         rgb_matrix_mode_noeeprom(RGB_MATRIX_DEFAULT_MODE);
-        auto_pointer_rgb_on = false;
+        pointer_layer_rgb_on = false;
     }
 #        endif
     return state;
