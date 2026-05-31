@@ -45,3 +45,9 @@
 // emitting the tap -- the "The -> nthe" bug).
 #define CHORDAL_HOLD
 #define HOLD_ON_OTHER_KEY_PRESS
+// Flow Tap: during fast typing (a tap-hold key pressed within this many ms of
+// the previous typing key), force the tap.  Catches fast cross-hand rolls of
+// home-row pairs (to/is/it/an/or) that HOLD_ON_OTHER_KEY_PRESS would otherwise
+// misfire as mods.  Default key set includes Space; see is_flow_tap_key() to
+// customize (e.g. drop KC_SPC if capitals after a space get eaten).
+#define FLOW_TAP_TERM 150
